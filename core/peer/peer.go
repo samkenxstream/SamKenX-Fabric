@@ -92,11 +92,8 @@ func (p *Peer) updateTrustedRoots(cm channelconfig.Resources) {
 
 	p.CredentialSupport.BuildTrustedRootsForChain(cm)
 
-	// now iterate over all roots for all app and orderer channels
-	var trustedRoots [][]byte
-	for _, roots := range p.CredentialSupport.AppRootCAsByChain() {
-		trustedRoots = append(trustedRoots, roots...)
-	}
+	trustedRoots := p.CredentialSupport.AppRootCAsByChain()
+
 	trustedRoots = append(trustedRoots, p.ServerConfig.SecOpts.ClientRootCAs...)
 	trustedRoots = append(trustedRoots, p.ServerConfig.SecOpts.ServerRootCAs...)
 
@@ -256,6 +253,10 @@ func (p *Peer) createChannel(
 
 	channelconfig.LogSanityChecks(bundle)
 
+	if _, ok := bundle.OrdererConfig(); !ok {
+		return errors.Errorf("[channel %s] cannot create channel because ChannelConfig is missing OrdererConfig", bundle.ConfigtxValidator().ChannelID())
+	}
+
 	gossipEventer := p.GossipService.NewConfigEventer()
 
 	gossipCallbackWrapper := func(bundle *channelconfig.Bundle) {
@@ -369,13 +370,21 @@ func (p *Peer) createChannel(
 		return p.Channel(channelID).MSPManager()
 	}
 	simpleCollectionStore := privdata.NewSimpleCollectionStore(l, deployedCCInfoProvider, idDeserializerFactory)
-	p.GossipService.InitializeChannel(bundle.ConfigtxValidator().ChannelID(), ordererSource, store, gossipservice.Support{
-		Validator:            validator,
-		Committer:            committer,
-		CollectionStore:      simpleCollectionStore,
-		IdDeserializeFactory: idDeserializerFactory,
-		CapabilityProvider:   channel,
-	})
+
+	p.GossipService.InitializeChannel(
+		bundle.ConfigtxValidator().ChannelID(),
+		ordererSource,
+		store,
+		gossipservice.Support{
+			Validator:            validator,
+			Committer:            committer,
+			CollectionStore:      simpleCollectionStore,
+			IdDeserializeFactory: idDeserializerFactory,
+			CapabilityProvider:   channel,
+		},
+		chanConf,
+		p.CryptoProvider,
+	)
 
 	p.mutex.Lock()
 	defer p.mutex.Unlock()

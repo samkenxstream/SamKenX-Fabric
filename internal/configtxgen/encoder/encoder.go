@@ -154,7 +154,7 @@ func NewChannelGroup(conf *genesisconfig.Profile) (*cb.ConfigGroup, error) {
 
 	var err error
 	if conf.Orderer != nil {
-		channelGroup.Groups[channelconfig.OrdererGroupKey], err = NewOrdererGroup(conf.Orderer)
+		channelGroup.Groups[channelconfig.OrdererGroupKey], err = NewOrdererGroup(conf.Orderer, conf.Capabilities)
 		if err != nil {
 			return nil, errors.Wrap(err, "could not create orderer group")
 		}
@@ -181,7 +181,10 @@ func NewChannelGroup(conf *genesisconfig.Profile) (*cb.ConfigGroup, error) {
 // NewOrdererGroup returns the orderer component of the channel configuration.  It defines parameters of the ordering service
 // about how large blocks should be, how frequently they should be emitted, etc. as well as the organizations of the ordering network.
 // It sets the mod_policy of all elements to "Admins".  This group is always present in any channel configuration.
-func NewOrdererGroup(conf *genesisconfig.Orderer) (*cb.ConfigGroup, error) {
+func NewOrdererGroup(conf *genesisconfig.Orderer, channelCapabilities map[string]bool) (*cb.ConfigGroup, error) {
+	if conf.OrdererType == "BFT" && !channelCapabilities["V3_0"] {
+		return nil, errors.New("orderer type BFT must be used with V3_0 capability")
+	}
 	ordererGroup := protoutil.NewConfigGroup()
 	if err := AddOrdererPolicies(ordererGroup, conf.Policies, channelconfig.AdminsPolicyKey); err != nil {
 		return nil, errors.Wrapf(err, "error adding policies to orderer group")
@@ -534,6 +537,7 @@ func ConfigTemplateFromGroup(conf *genesisconfig.Profile, cg *cb.ConfigGroup) (*
 
 // MakeChannelCreationTransaction is a handy utility function for creating transactions for channel creation.
 // It assumes the invoker has no system channel context so ignores all but the application section.
+// Deprecated
 func MakeChannelCreationTransaction(
 	channelID string,
 	signer identity.SignerSerializer,
@@ -549,6 +553,7 @@ func MakeChannelCreationTransaction(
 // MakeChannelCreationTransactionWithSystemChannelContext is a utility function for creating channel creation txes.
 // It requires a configuration representing the orderer system channel to allow more sophisticated channel creation
 // transactions modifying pieces of the configuration like the orderer set.
+// Deprecated
 func MakeChannelCreationTransactionWithSystemChannelContext(
 	channelID string,
 	signer identity.SignerSerializer,
@@ -672,4 +677,8 @@ func (bs *Bootstrapper) GenesisBlock() *cb.Block {
 // GenesisBlockForChannel produces a genesis block for a given channel ID
 func (bs *Bootstrapper) GenesisBlockForChannel(channelID string) *cb.Block {
 	return genesis.NewFactoryImpl(bs.channelGroup).Block(channelID)
+}
+
+func (bs *Bootstrapper) GenesisChannelGroup() *cb.ConfigGroup {
+	return bs.channelGroup
 }

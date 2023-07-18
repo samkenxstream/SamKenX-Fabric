@@ -16,6 +16,7 @@ import (
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	transientstore2 "github.com/hyperledger/fabric-protos-go/transientstore"
+	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric/bccsp/sw"
 	"github.com/hyperledger/fabric/common/channelconfig"
@@ -185,16 +186,14 @@ func TestLeaderElectionWithDeliverClient(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		deliverServiceFactory := &mockDeliverServiceFactory{
-			service: &mockDeliverService{
-				running: make(map[string]bool),
-			},
+			service: &mockDeliverService{},
 		}
 		gossips[i].deliveryFactory = deliverServiceFactory
-		deliverServiceFactory.service.running[channelName] = false
+		deliverServiceFactory.service.running = false
 
 		gossips[i].InitializeChannel(channelName, orderers.NewConnectionSource(flogging.MustGetLogger("peer.orderers"), nil), store.Store, Support{
 			Committer: &mockLedgerInfo{1},
-		})
+		}, nil, nil)
 		service, exist := gossips[i].leaderElection[channelName]
 		require.True(t, exist, "Leader election service should be created for peer %d and channel %s", i, channelName)
 		services[i] = &electionService{nil, false, 0}
@@ -207,7 +206,7 @@ func TestLeaderElectionWithDeliverClient(t *testing.T) {
 	startsNum := 0
 	for i := 0; i < n; i++ {
 		// Is mockDeliverService.StartDeliverForChannel in current peer for the specific channel was invoked
-		if gossips[i].deliveryService[channelName].(*mockDeliverService).running[channelName] {
+		if gossips[i].deliveryService[channelName].(*mockDeliverService).running {
 			startsNum++
 		}
 	}
@@ -247,35 +246,33 @@ func TestWithStaticDeliverClientLeader(t *testing.T) {
 	defer store.tearDown()
 
 	deliverServiceFactory := &mockDeliverServiceFactory{
-		service: &mockDeliverService{
-			running: make(map[string]bool),
-		},
+		service: &mockDeliverService{},
 	}
 
 	for i := 0; i < n; i++ {
 		gossips[i].deliveryFactory = deliverServiceFactory
-		deliverServiceFactory.service.running[channelName] = false
+		deliverServiceFactory.service.running = false
 		gossips[i].InitializeChannel(channelName, orderers.NewConnectionSource(flogging.MustGetLogger("peer.orderers"), nil), store.Store, Support{
 			Committer: &mockLedgerInfo{1},
-		})
+		}, nil, nil)
 	}
 
 	for i := 0; i < n; i++ {
 		require.NotNil(t, gossips[i].deliveryService[channelName], "Delivery service for channel %s not initiated in peer %d", channelName, i)
-		require.True(t, gossips[i].deliveryService[channelName].(*mockDeliverService).running[channelName], "Block deliverer not started for peer %d", i)
+		require.True(t, gossips[i].deliveryService[channelName].(*mockDeliverService).running, "Block deliverer not started for peer %d", i)
 	}
 
 	channelName = "chanB"
 	for i := 0; i < n; i++ {
-		deliverServiceFactory.service.running[channelName] = false
+		deliverServiceFactory.service.running = false
 		gossips[i].InitializeChannel(channelName, orderers.NewConnectionSource(flogging.MustGetLogger("peer.orderers"), nil), store.Store, Support{
 			Committer: &mockLedgerInfo{1},
-		})
+		}, nil, nil)
 	}
 
 	for i := 0; i < n; i++ {
 		require.NotNil(t, gossips[i].deliveryService[channelName], "Delivery service for channel %s not initiated in peer %d", channelName, i)
-		require.True(t, gossips[i].deliveryService[channelName].(*mockDeliverService).running[channelName], "Block deliverer not started for peer %d", i)
+		require.True(t, gossips[i].deliveryService[channelName].(*mockDeliverService).running, "Block deliverer not started for peer %d", i)
 	}
 
 	stopPeers(gossips)
@@ -306,22 +303,20 @@ func TestWithStaticDeliverClientNotLeader(t *testing.T) {
 	defer store.tearDown()
 
 	deliverServiceFactory := &mockDeliverServiceFactory{
-		service: &mockDeliverService{
-			running: make(map[string]bool),
-		},
+		service: &mockDeliverService{},
 	}
 
 	for i := 0; i < n; i++ {
 		gossips[i].deliveryFactory = deliverServiceFactory
-		deliverServiceFactory.service.running[channelName] = false
+		deliverServiceFactory.service.running = false
 		gossips[i].InitializeChannel(channelName, orderers.NewConnectionSource(flogging.MustGetLogger("peer.orderers"), nil), store.Store, Support{
 			Committer: &mockLedgerInfo{1},
-		})
+		}, nil, nil)
 	}
 
 	for i := 0; i < n; i++ {
 		require.NotNil(t, gossips[i].deliveryService[channelName], "Delivery service for channel %s not initiated in peer %d", channelName, i)
-		require.False(t, gossips[i].deliveryService[channelName].(*mockDeliverService).running[channelName], "Block deliverer should not be started for peer %d", i)
+		require.False(t, gossips[i].deliveryService[channelName].(*mockDeliverService).running, "Block deliverer should not be started for peer %d", i)
 	}
 
 	stopPeers(gossips)
@@ -353,9 +348,7 @@ func TestWithStaticDeliverClientBothStaticAndLeaderElection(t *testing.T) {
 	defer store.tearDown()
 
 	deliverServiceFactory := &mockDeliverServiceFactory{
-		service: &mockDeliverService{
-			running: make(map[string]bool),
-		},
+		service: &mockDeliverService{},
 	}
 
 	for i := 0; i < n; i++ {
@@ -363,7 +356,7 @@ func TestWithStaticDeliverClientBothStaticAndLeaderElection(t *testing.T) {
 		require.Panics(t, func() {
 			gossips[i].InitializeChannel(channelName, orderers.NewConnectionSource(flogging.MustGetLogger("peer.orderers"), nil), store.Store, Support{
 				Committer: &mockLedgerInfo{1},
-			})
+			}, nil, nil)
 		}, "Dynamic leader election based and static connection to ordering service can't exist simultaneously")
 	}
 
@@ -374,21 +367,23 @@ type mockDeliverServiceFactory struct {
 	service *mockDeliverService
 }
 
-func (mf *mockDeliverServiceFactory) Service(GossipServiceAdapter, *orderers.ConnectionSource, api.MessageCryptoService, bool) deliverservice.DeliverService {
+func (mf *mockDeliverServiceFactory) Service(GossipServiceAdapter, *orderers.ConnectionSource, api.MessageCryptoService, bool, *common.Config, bccsp.BCCSP) deliverservice.DeliverService {
 	return mf.service
 }
 
 type mockDeliverService struct {
-	running map[string]bool
+	running   bool
+	channelID string
 }
 
 func (ds *mockDeliverService) StartDeliverForChannel(chainID string, ledgerInfo blocksprovider.LedgerInfo, finalizer func()) error {
-	ds.running[chainID] = true
+	ds.running = true
+	ds.channelID = chainID
 	return nil
 }
 
-func (ds *mockDeliverService) StopDeliverForChannel(chainID string) error {
-	ds.running[chainID] = false
+func (ds *mockDeliverService) StopDeliverForChannel() error {
+	ds.running = false
 	return nil
 }
 
@@ -843,6 +838,12 @@ func (*naiveCryptoService) VerifyBlock(chainID gossipcommon.ChannelID, seqNum ui
 	return nil
 }
 
+// VerifyBlockAttestation returns nil if the block attestation is properly signed,
+// else returns error
+func (*naiveCryptoService) VerifyBlockAttestation(channelID string, signedBlock *common.Block) error {
+	return nil
+}
+
 // Sign signs msg with this peer's signing key and outputs
 // the signature if no error occurred.
 func (*naiveCryptoService) Sign(msg []byte) ([]byte, error) {
@@ -900,7 +901,7 @@ func TestInvalidInitialization(t *testing.T) {
 	go grpcServer.Serve(socket)
 	defer grpcServer.Stop()
 
-	dc := gService.deliveryFactory.Service(gService, orderers.NewConnectionSource(flogging.MustGetLogger("peer.orderers"), nil), &naiveCryptoService{}, false)
+	dc := gService.deliveryFactory.Service(gService, orderers.NewConnectionSource(flogging.MustGetLogger("peer.orderers"), nil), &naiveCryptoService{}, false, nil, nil)
 	require.NotNil(t, dc)
 }
 

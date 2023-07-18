@@ -41,14 +41,14 @@ func TestInspectMissing(t *testing.T) {
 func TestInspectBlock(t *testing.T) {
 	blockDest := filepath.Join(tmpDir, "block")
 
-	config := genesisconfig.Load(genesisconfig.SampleInsecureSoloProfile, configtest.GetDevConfigDir())
+	config := genesisconfig.Load(genesisconfig.SampleAppChannelInsecureSoloProfile, configtest.GetDevConfigDir())
 
 	require.NoError(t, doOutputBlock(config, "foo", blockDest), "Good block generation request")
 	require.NoError(t, doInspectBlock(blockDest), "Good block inspection request")
 }
 
 func TestInspectBlockErr(t *testing.T) {
-	config := genesisconfig.Load(genesisconfig.SampleInsecureSoloProfile, configtest.GetDevConfigDir())
+	config := genesisconfig.Load(genesisconfig.SampleAppChannelInsecureSoloProfile, configtest.GetDevConfigDir())
 
 	require.EqualError(t, doOutputBlock(config, "foo", ""), "error writing genesis block: open : no such file or directory")
 	require.EqualError(t, doInspectBlock(""), "could not read block ")
@@ -57,7 +57,7 @@ func TestInspectBlockErr(t *testing.T) {
 func TestMissingOrdererSection(t *testing.T) {
 	blockDest := filepath.Join(tmpDir, "block")
 
-	config := genesisconfig.Load(genesisconfig.SampleInsecureSoloProfile, configtest.GetDevConfigDir())
+	config := genesisconfig.Load(genesisconfig.SampleAppChannelInsecureSoloProfile, configtest.GetDevConfigDir())
 	config.Orderer = nil
 
 	require.EqualError(t, doOutputBlock(config, "foo", blockDest), "refusing to generate block which is missing orderer section")
@@ -155,15 +155,13 @@ func TestConfigTxFlags(t *testing.T) {
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	}()
 
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 	devConfigDir := configtest.GetDevConfigDir()
 
 	os.Args = []string{
 		"cmd",
 		"-channelID=testchannelid",
 		"-outputCreateChannelTx=" + configTxDest,
-		"-channelCreateTxBaseProfile=" + genesisconfig.SampleSingleMSPSoloProfile,
 		"-profile=" + genesisconfig.SampleSingleMSPChannelProfile,
 		"-configPath=" + devConfigDir,
 		"-inspectChannelCreateTx=" + configTxDest,
@@ -193,8 +191,7 @@ func TestBlockFlags(t *testing.T) {
 		"-outputBlock=" + blockDest,
 		"-inspectBlock=" + blockDest,
 	}
-	cleanup := configtest.SetDevFabricConfigPath(t)
-	defer cleanup()
+	configtest.SetDevFabricConfigPath(t)
 
 	main()
 
@@ -216,4 +213,36 @@ func TestPrintOrg(t *testing.T) {
 	err = doPrintOrg(config, "FakeOrg")
 	require.Error(t, err, "Fake org")
 	require.Regexp(t, "bad org definition", err.Error())
+}
+
+func createBftOrdererConfig() *genesisconfig.Profile {
+	// Load the BFT config from the sample, and use some TLS CA Cert as crypto material
+	config := genesisconfig.Load(genesisconfig.SampleAppChannelSmartBftProfile, configtest.GetDevConfigDir())
+	tlsCertPath := filepath.Join(configtest.GetDevConfigDir(), "msp", "tlscacerts", "tlsroot.pem")
+	for _, consenter := range config.Orderer.ConsenterMapping {
+		consenter.Identity = tlsCertPath
+		consenter.ClientTLSCert = tlsCertPath
+		consenter.ServerTLSCert = tlsCertPath
+	}
+	return config
+}
+
+func TestBftOrdererTypeWithoutV3CapabilitiesShouldRaiseAnError(t *testing.T) {
+	// ### Arrange
+	blockDest := filepath.Join(tmpDir, "block")
+	config := createBftOrdererConfig()
+	config.Capabilities["V3_0"] = false
+
+	// ### Act & Assert
+	require.EqualError(t, doOutputBlock(config, "testChannelId", blockDest), "could not create bootstrapper: could not create channel group: could not create orderer group: orderer type BFT must be used with V3_0 capability")
+}
+
+func TestBftOrdererTypeWithV3CapabilitiesShouldNotRaiseAnError(t *testing.T) {
+	// ### Arrange
+	blockDest := filepath.Join(tmpDir, "block")
+	config := createBftOrdererConfig()
+	config.Capabilities["V3_0"] = true
+
+	// ### Act & Assert
+	require.NoError(t, doOutputBlock(config, "testChannelId", blockDest))
 }

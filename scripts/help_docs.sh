@@ -54,7 +54,7 @@ checkHelpTextCurrent() {
 
   generateHelpText "$tempfile" "$@"
   if ! diff -u "$doc" "$tempfile"; then
-    echo "The command line help docs are out of date and need to be regenerated"
+    echo "The command line help docs are out of date and need to be regenerated, see docs/source/docs_guide.md for more details."
     exit 2
   fi
 
@@ -141,7 +141,7 @@ generateOrCheck \
         docs/wrappers/osnadmin_channel_postscript.md \
         "${commands[@]}"
 
-commands=("ledgerutil compare" "ledgerutil identifytxs")
+commands=("ledgerutil compare" "ledgerutil identifytxs" "ledgerutil verify")
 generateOrCheck \
         docs/source/commands/ledgerutil.md \
         docs/wrappers/ledgerutil_preamble.md \

@@ -48,7 +48,7 @@ type ChannelManagement interface {
 
 	// JoinChannel instructs the orderer to create a channel and join it with the provided config block.
 	// The URL field is empty, and is to be completed by the caller.
-	JoinChannel(channelID string, configBlock *cb.Block, isAppChannel bool) (types.ChannelInfo, error)
+	JoinChannel(channelID string, configBlock *cb.Block) (types.ChannelInfo, error)
 
 	// RemoveChannel instructs the orderer to remove a channel.
 	RemoveChannel(channelID string) error
@@ -64,7 +64,7 @@ type HTTPHandler struct {
 
 func NewHTTPHandler(config localconfig.ChannelParticipation, registrar ChannelManagement) *HTTPHandler {
 	handler := &HTTPHandler{
-		logger:    flogging.MustGetLogger("orderer.commmon.channelparticipation"),
+		logger:    flogging.MustGetLogger("orderer.common.channelparticipation"),
 		config:    config,
 		registrar: registrar,
 		router:    mux.NewRouter(),
@@ -110,8 +110,6 @@ func NewHTTPHandler(config localconfig.ChannelParticipation, registrar ChannelMa
 	//      description: Bad request.
 	//    '404':
 	//      description: The channel does not exist.
-	//    '405':
-	//      description: The system channel exists, removal is not allowed.
 	//    '409':
 	//      description: The channel is pending removal.
 
@@ -159,13 +157,8 @@ func NewHTTPHandler(config localconfig.ChannelParticipation, registrar ChannelMa
 	//        type: string
 	//    '400':
 	//      description: Cannot join channel.
-	//    '403':
-	//      description: The client is trying to join the system-channel that does not exist, but application channels exist.
 	//    '405':
-	//      description: |
-	//                   The client is trying to join an app-channel, but the system channel exists.
-	//                   The client is trying to join an app-channel that exists, but the system channel does not.
-	//                   The client is trying to join the system-channel, and it exists.
+	//      description: The client is trying to join an app-channel that exists.
 	//    '409':
 	//      description: The client is trying to join a channel that is currently being removed.
 	//    '500':
@@ -260,13 +253,13 @@ func (h *HTTPHandler) serveJoin(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	channelID, isAppChannel, err := ValidateJoinBlock(block)
+	channelID, err := ValidateJoinBlock(block)
 	if err != nil {
 		h.sendResponseJsonError(resp, http.StatusBadRequest, errors.WithMessage(err, "invalid join block"))
 		return
 	}
 
-	info, err := h.registrar.JoinChannel(channelID, block, isAppChannel)
+	info, err := h.registrar.JoinChannel(channelID, block)
 	if err != nil {
 		h.sendJoinError(err, resp)
 		return

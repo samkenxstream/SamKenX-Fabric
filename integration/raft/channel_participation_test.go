@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,12 +25,14 @@ import (
 	"github.com/hyperledger/fabric-config/configtx"
 	"github.com/hyperledger/fabric-config/configtx/orderer"
 	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/common/ledger/blockledger/fileledger"
 	"github.com/hyperledger/fabric/common/metrics/disabled"
 	"github.com/hyperledger/fabric/integration/channelparticipation"
 	conftx "github.com/hyperledger/fabric/integration/configtx"
 	"github.com/hyperledger/fabric/integration/nwo"
 	"github.com/hyperledger/fabric/integration/ordererclient"
+	"github.com/hyperledger/fabric/protoutil"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -81,8 +84,6 @@ var _ = Describe("ChannelParticipation", func() {
 
 		BeforeEach(func() {
 			network = nwo.New(multiNodeEtcdRaftTwoChannels(), testDir, client, StartPort(), components)
-			network.Consensus.ChannelParticipationEnabled = true
-			network.Consensus.BootstrapMethod = "none"
 			network.GenerateConfigTree()
 			network.Bootstrap()
 		})
@@ -235,7 +236,6 @@ var _ = Describe("ChannelParticipation", func() {
 			Eventually(func() channelparticipation.ChannelList {
 				return channelparticipation.List(network, orderer1)
 			}, network.EventuallyTimeout).Should(Equal(channelparticipation.ChannelList{
-				SystemChannel: nil,
 				Channels: []channelparticipation.ChannelInfoShort{
 					{
 						Name: "another-participation-trophy",
@@ -321,6 +321,9 @@ var _ = Describe("ChannelParticipation", func() {
 
 			By("attempting to join a channel that already exists")
 			channelparticipationJoinFailure(network, orderer3, "participation-trophy", genesisBlock, http.StatusMethodNotAllowed, "cannot join: channel already exists")
+
+			By("attempting to join a channel that defines a system channel")
+			channelparticipationJoinFailure(network, orderer3, "nice-try", createJoinBlockDefineSystemChannel("nice-try"), http.StatusBadRequest, "invalid join block: invalid config: contains consortiums: system channel not supported")
 		})
 
 		It("joins application channels with join-block as consenter via channel participation api", func() {
@@ -816,80 +819,6 @@ func applicationChannelGenesisBlock(n *nwo.Network, orderers []*nwo.Orderer, pee
 	return genesisBlock
 }
 
-func systemChannelGenesisBlock(n *nwo.Network, orderers []*nwo.Orderer, peers []*nwo.Peer, channel string) *common.Block {
-	ordererOrgs, consenters := ordererOrganizationsAndConsenters(n, orderers)
-	peerOrgs := peerOrganizations(n, peers)
-
-	channelConfig := configtx.Channel{
-		Orderer: configtx.Orderer{
-			OrdererType:   "etcdraft",
-			Organizations: ordererOrgs,
-			EtcdRaft: orderer.EtcdRaft{
-				Consenters: consenters,
-				Options: orderer.EtcdRaftOptions{
-					TickInterval:         "500ms",
-					ElectionTick:         10,
-					HeartbeatTick:        1,
-					MaxInflightBlocks:    5,
-					SnapshotIntervalSize: 16 * 1024 * 1024, // 16 MB
-				},
-			},
-			Policies: map[string]configtx.Policy{
-				"Readers": {
-					Type: "ImplicitMeta",
-					Rule: "ANY Readers",
-				},
-				"Writers": {
-					Type: "ImplicitMeta",
-					Rule: "ANY Writers",
-				},
-				"Admins": {
-					Type: "ImplicitMeta",
-					Rule: "MAJORITY Admins",
-				},
-				"BlockValidation": {
-					Type: "ImplicitMeta",
-					Rule: "ANY Writers",
-				},
-			},
-			Capabilities: []string{"V2_0"},
-			BatchSize: orderer.BatchSize{
-				MaxMessageCount:   100,
-				AbsoluteMaxBytes:  1024 * 1024,
-				PreferredMaxBytes: 512 * 1024,
-			},
-			BatchTimeout: 2 * time.Second,
-			State:        "STATE_NORMAL",
-		},
-		Consortiums: []configtx.Consortium{
-			{
-				Name:          n.Consortiums[0].Name,
-				Organizations: peerOrgs,
-			},
-		},
-		Capabilities: []string{"V2_0"},
-		Policies: map[string]configtx.Policy{
-			"Readers": {
-				Type: "ImplicitMeta",
-				Rule: "ANY Readers",
-			},
-			"Writers": {
-				Type: "ImplicitMeta",
-				Rule: "ANY Writers",
-			},
-			"Admins": {
-				Type: "ImplicitMeta",
-				Rule: "MAJORITY Admins",
-			},
-		},
-	}
-
-	genesisBlock, err := configtx.NewSystemChannelGenesisBlock(channelConfig, channel)
-	Expect(err).NotTo(HaveOccurred())
-
-	return genesisBlock
-}
-
 // parseCertificate loads the PEM-encoded x509 certificate at the specified
 // path.
 func parseCertificate(path string) *x509.Certificate {
@@ -1094,7 +1023,7 @@ func channelparticipationRemoveFailure(n *nwo.Network, o *nwo.Orderer, channel s
 }
 
 func multiNodeEtcdRaftTwoChannels() *nwo.Config {
-	config := nwo.MultiNodeEtcdRaftNoSysChan()
+	config := nwo.MultiNodeEtcdRaft()
 	config.Channels = []*nwo.Channel{
 		{Name: "testchannel", Profile: "TwoOrgsAppChannelEtcdRaft"},
 		{Name: "testchannel2", Profile: "TwoOrgsAppChannelEtcdRaft"},
@@ -1108,4 +1037,52 @@ func multiNodeEtcdRaftTwoChannels() *nwo.Config {
 	}
 
 	return config
+}
+
+func createJoinBlockDefineSystemChannel(channelID string) *common.Block {
+	block := protoutil.NewBlock(0, []byte{})
+	block.Data = &common.BlockData{
+		Data: [][]byte{
+			protoutil.MarshalOrPanic(&common.Envelope{
+				Payload: protoutil.MarshalOrPanic(&common.Payload{
+					Data: protoutil.MarshalOrPanic(&common.ConfigEnvelope{
+						Config: &common.Config{
+							ChannelGroup: &common.ConfigGroup{
+								Groups: map[string]*common.ConfigGroup{
+									"Consortiums": {},
+								},
+								Values: map[string]*common.ConfigValue{
+									"HashingAlgorithm": {
+										Value: protoutil.MarshalOrPanic(&common.HashingAlgorithm{
+											Name: bccsp.SHA256,
+										}),
+									},
+									"BlockDataHashingStructure": {
+										Value: protoutil.MarshalOrPanic(&common.BlockDataHashingStructure{
+											Width: math.MaxUint32,
+										}),
+									},
+									"OrdererAddresses": {
+										Value: protoutil.MarshalOrPanic(&common.OrdererAddresses{
+											Addresses: []string{"localhost"},
+										}),
+									},
+								},
+							},
+						},
+					}),
+					Header: &common.Header{
+						ChannelHeader: protoutil.MarshalOrPanic(&common.ChannelHeader{
+							Type:      int32(common.HeaderType_CONFIG),
+							ChannelId: channelID,
+						}),
+					},
+				}),
+			}),
+		},
+	}
+	block.Header.DataHash = protoutil.BlockDataHash(block.Data)
+	protoutil.InitBlockMetadata(block)
+
+	return block
 }

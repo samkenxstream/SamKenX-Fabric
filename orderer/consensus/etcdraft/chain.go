@@ -1179,10 +1179,8 @@ func (c *Chain) apply(ents []raftpb.Entry) {
 				continue
 			}
 
-			// persist the WAL entries into disk
-			c.Node.storage.WALSyncC <- struct{}{}
-
 			c.confState = *c.Node.ApplyConfChange(cc)
+
 			switch cc.Type {
 			case raftpb.ConfChangeAddNode:
 				c.logger.Infof("Applied config change to add node %d, current nodes in channel: %+v", cc.NodeID, c.confState.Voters)
@@ -1265,7 +1263,7 @@ func (c *Chain) isConfig(env *common.Envelope) (bool, error) {
 		return false, err
 	}
 
-	return h.Type == int32(common.HeaderType_CONFIG) || h.Type == int32(common.HeaderType_ORDERER_TRANSACTION), nil
+	return h.Type == int32(common.HeaderType_CONFIG), nil
 }
 
 func (c *Chain) configureComm() error {
@@ -1388,13 +1386,7 @@ func (c *Chain) writeConfigBlock(block *common.Block, index uint64) {
 		}
 
 	case common.HeaderType_ORDERER_TRANSACTION:
-		// If this config is channel creation, no extra inspection is needed
-		c.raftMetadataLock.Lock()
-		c.opts.BlockMetadata.RaftIndex = index
-		m := protoutil.MarshalOrPanic(c.opts.BlockMetadata)
-		c.raftMetadataLock.Unlock()
-
-		c.support.WriteConfigBlock(block, m)
+		c.logger.Panicf("Programming error: unsupported legacy system channel config type: %s", common.HeaderType(hdr.Type))
 
 	default:
 		c.logger.Panicf("Programming error: unexpected config type: %s", common.HeaderType(hdr.Type))

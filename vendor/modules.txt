@@ -56,11 +56,12 @@ github.com/Microsoft/hcsshim/internal/vmcompute
 github.com/Microsoft/hcsshim/internal/wclayer
 github.com/Microsoft/hcsshim/internal/winapi
 github.com/Microsoft/hcsshim/osversion
-# github.com/SmartBFT-Go/consensus v0.0.0-20230212211744-e5a79afcea81
-## explicit; go 1.15
+# github.com/SmartBFT-Go/consensus v0.0.0-20230430133422-4dca5ba006ee
+## explicit; go 1.20
 github.com/SmartBFT-Go/consensus/internal/bft
 github.com/SmartBFT-Go/consensus/pkg/api
 github.com/SmartBFT-Go/consensus/pkg/consensus
+github.com/SmartBFT-Go/consensus/pkg/metrics/disabled
 github.com/SmartBFT-Go/consensus/pkg/types
 github.com/SmartBFT-Go/consensus/pkg/wal
 github.com/SmartBFT-Go/consensus/smartbftprotos
@@ -109,7 +110,7 @@ github.com/containerd/containerd/sys
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
-# github.com/docker/docker v20.10.7+incompatible
+# github.com/docker/docker v20.10.24+incompatible
 ## explicit
 github.com/docker/docker/api/types/blkiodev
 github.com/docker/docker/api/types/container
@@ -216,8 +217,8 @@ github.com/hyperledger/fabric-chaincode-go/pkg/statebased
 github.com/hyperledger/fabric-chaincode-go/shim
 github.com/hyperledger/fabric-chaincode-go/shim/internal
 github.com/hyperledger/fabric-chaincode-go/shimtest
-# github.com/hyperledger/fabric-config v0.1.0
-## explicit; go 1.14
+# github.com/hyperledger/fabric-config v0.2.1
+## explicit; go 1.20
 github.com/hyperledger/fabric-config/configtx
 github.com/hyperledger/fabric-config/configtx/internal/policydsl
 github.com/hyperledger/fabric-config/configtx/membership
@@ -344,7 +345,7 @@ github.com/opencontainers/go-digest
 ## explicit
 github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
-# github.com/opencontainers/runc v1.1.4
+# github.com/opencontainers/runc v1.1.5
 ## explicit; go 1.16
 github.com/opencontainers/runc/libcontainer/user
 # github.com/pelletier/go-toml v1.8.1

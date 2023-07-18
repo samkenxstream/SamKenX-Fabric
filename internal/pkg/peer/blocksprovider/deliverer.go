@@ -25,23 +25,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-type sleeper struct {
-	sleep func(time.Duration)
-}
-
-func (s sleeper) Sleep(d time.Duration, doneC chan struct{}) {
-	if s.sleep == nil {
-		timer := time.NewTimer(d)
-		select {
-		case <-timer.C:
-		case <-doneC:
-			timer.Stop()
-		}
-		return
-	}
-	s.sleep(d)
-}
-
 // LedgerInfo an adapter to provide the interface to query
 // the ledger committer for current ledger height
 //
@@ -66,11 +49,17 @@ type GossipServiceAdapter interface {
 //go:generate counterfeiter -o fake/block_verifier.go --fake-name BlockVerifier . BlockVerifier
 type BlockVerifier interface {
 	VerifyBlock(channelID gossipcommon.ChannelID, blockNum uint64, block *common.Block) error
+
+	// VerifyBlockAttestation does the same as VerifyBlock, except it assumes block.Data = nil. It therefore does not
+	// compute the block.Data.Hash() and compare it to the block.Header.DataHash. This is used when the orderer
+	// delivers a block with header & metadata only, as an attestation of block existence.
+	VerifyBlockAttestation(channelID string, block *common.Block) error
 }
 
 //go:generate counterfeiter -o fake/orderer_connection_source.go --fake-name OrdererConnectionSource . OrdererConnectionSource
 type OrdererConnectionSource interface {
 	RandomEndpoint() (*orderers.Endpoint, error)
+	Endpoints() []*orderers.Endpoint
 }
 
 //go:generate counterfeiter -o fake/dialer.go --fake-name Dialer . Dialer
@@ -83,7 +72,7 @@ type DeliverStreamer interface {
 	Deliver(context.Context, *grpc.ClientConn) (orderer.AtomicBroadcast_DeliverClient, error)
 }
 
-// Deliverer the actual implementation for BlocksProvider interface
+// Deliverer the actual implementation for BlocksDeliverer interface
 type Deliverer struct {
 	ChannelID       string
 	Gossip          GossipServiceAdapter

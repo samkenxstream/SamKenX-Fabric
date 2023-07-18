@@ -6,18 +6,18 @@
 [![GoDoc](https://godoc.org/github.com/hyperledger/fabric?status.svg)](https://godoc.org/github.com/hyperledger/fabric)
 [![Documentation Status](https://readthedocs.org/projects/hyperledger-fabric/badge/?version=latest)](http://hyperledger-fabric.readthedocs.io/en/latest)
 
-This project is a _Graduated_ Hyperledger project. For more information on the history of this project see the [Fabric wiki page](https://wiki.hyperledger.org/display/fabric). Information on what _Graduated_ entails can be found in
+This project is a _Graduated_ Hyperledger project. For more information on the history of this project, see the [Fabric wiki page](https://wiki.hyperledger.org/display/fabric). Information on what _Graduated_ entails can be found in
 the [Hyperledger Project Lifecycle document](https://tsc.hyperledger.org/project-lifecycle.html).
-Hyperledger Fabric is a platform for distributed ledger solutions, underpinned
+Hyperledger Fabric is a platform for distributed ledger solutions underpinned
 by a modular architecture delivering high degrees of confidentiality,
-resiliency, flexibility and scalability. It is designed to support pluggable
-implementations of different components, and accommodate the complexity and
+resiliency, flexibility, and scalability. It is designed to support pluggable
+implementations of different components and accommodate the complexity and
 intricacies that exist across the economic ecosystem.
 
 Hyperledger Fabric delivers a uniquely elastic and extensible architecture,
 distinguishing it from alternative blockchain solutions. Planning for the
 future of enterprise blockchain requires building on top of a fully-vetted,
-open source architecture; Hyperledger Fabric is your starting point.
+open-source architecture; Hyperledger Fabric is your starting point.
 
 ## Releases
 
@@ -27,10 +27,13 @@ support (LTS) releases. Important fixes will be backported to the most recent
 LTS release, and to the prior LTS release during periods of LTS release overlap.
 For more details see the [LTS strategy](https://github.com/hyperledger/fabric-rfcs/blob/main/text/0005-lts-release-strategy.md).
 
-LTS release:
-- [v2.2.x](https://hyperledger-fabric.readthedocs.io/en/release-2.2/whatsnew.html) (current LTS release)
+Current LTS release:
+- [v2.5.x](https://hyperledger-fabric.readthedocs.io/en/release-2.5/whatsnew.html)
 
 Prior LTS release:
+- [v2.2.x](https://hyperledger-fabric.readthedocs.io/en/release-2.2/whatsnew.html) (maintained through December 2023)
+
+Historic LTS releases:
 - [v1.4.x](https://hyperledger-fabric.readthedocs.io/en/release-1.4/whatsnew.html) (maintenance ended in April 2021 with the delivery of v1.4.12)
 
 Unless specified otherwise, all releases will be upgradable from the prior minor release.
@@ -45,6 +48,7 @@ Please visit the [GitHub issues with Epic label](https://github.com/hyperledger/
 Please visit our
 online documentation for
 information on getting started using and developing with the fabric, SDK and chaincode:
+- [v2.5](http://hyperledger-fabric.readthedocs.io/en/release-2.5/)
 - [v2.4](http://hyperledger-fabric.readthedocs.io/en/release-2.4/)
 - [v2.3](http://hyperledger-fabric.readthedocs.io/en/release-2.3/)
 - [v2.2](http://hyperledger-fabric.readthedocs.io/en/release-2.2/)
